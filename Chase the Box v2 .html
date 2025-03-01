@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Avoid the Red Boxes!</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Creepster&display=swap');
+
+        body {
+            background-color: #111;
+            color: white;
+            text-align: center;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            overflow: hidden;
+            transition: background-color 0.3s ease-in-out;
+        }
+        #gameArea {
+            width: 90vw;
+            height: 80vh;
+            position: relative;
+            border: 4px solid white;
+            margin: 20px auto;
+            background-color: black;
+            overflow: hidden;
+            transition: width 0.5s, height 0.5s;
+        }
+        .box {
+            width: 40px;
+            height: 40px;
+            position: absolute;
+            border-radius: 5px;
+        }
+        #player {
+            background-color: blue;
+            z-index: 3;
+        }
+        .enemy {
+            background-color: red;
+            z-index: 2;
+        }
+        #levelText, #gameOverText {
+            font-size: 40px;
+            font-family: 'Creepster', cursive;
+            position: absolute;
+            width: 100%;
+            text-align: center;
+            top: 30%;
+            opacity: 0;
+            transition: opacity 1s;
+        }
+        #highScore {
+            font-size: 30px;
+            position: absolute;
+            width: 100%;
+            text-align: center;
+            top: 45%;
+            opacity: 0;
+            transition: opacity 1s;
+        }
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: scale(1.2); }
+            50% { opacity: 1; transform: scale(1); }
+            100% { opacity: 0; transform: scale(0.8); }
+        }
+        #timer {
+            font-size: 40px;
+            font-weight: bold;
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            color: yellow;
+            transition: font-size 0.3s, color 0.3s;
+        }
+        .flash {
+            animation: flashEffect 0.3s;
+        }
+        @keyframes flashEffect {
+            0% { opacity: 0.2; }
+            50% { opacity: 1; }
+            100% { opacity: 0.2; }
+        }
+    </style>
+</head>
+<body>
+    <div id="gameArea">
+        <div id="player" class="box"></div>
+        <div id="timer">60</div>
+        <div id="levelText"></div>
+        <div id="gameOverText">GAME OVER</div>
+        <div id="highScore">High Score: 0</div>
+    </div>
+
+    <script>
+        let gameArea = document.getElementById("gameArea");
+        let player = document.getElementById("player");
+        let levelText = document.getElementById("levelText");
+        let gameOverText = document.getElementById("gameOverText");
+        let highScoreText = document.getElementById("highScore");
+        let timerText = document.getElementById("timer");
+
+        let playerX = gameArea.clientWidth / 2, playerY = gameArea.clientHeight / 2;
+        let enemies = [];
+        let enemySpeed = 2;
+        let timeLeft = 60; 
+        let level = 1;
+        let gameActive = false;
+        let totalSurvivalTime = 0;
+        let highScore = localStorage.getItem("highScore") || 0;
+
+        let originalWidth = gameArea.clientWidth;
+        let originalHeight = gameArea.clientHeight;
+
+        gameArea.addEventListener("mousemove", (event) => {
+            let rect = gameArea.getBoundingClientRect();
+            playerX = Math.min(Math.max(event.clientX - rect.left - 20, 0), gameArea.clientWidth - 40);
+            playerY = Math.min(Math.max(event.clientY - rect.top - 20, 0), gameArea.clientHeight - 40);
+            updatePosition(player, playerX, playerY);
+        });
+
+        function createEnemy() {
+            let enemy = document.createElement("div");
+            enemy.classList.add("box", "enemy");
+            gameArea.appendChild(enemy);
+
+            let x, y;
+            do {
+                x = Math.random() * (gameArea.clientWidth - 40);
+                y = Math.random() * (gameArea.clientHeight - 40);
+            } while (Math.abs(x - playerX) < 100 && Math.abs(y - playerY) < 100);
+
+            enemies.push({ element: enemy, x, y });
+
+            enemy.classList.add("flash");
+            setTimeout(() => enemy.classList.remove("flash"), 300);
+        }
+
+        function moveEnemies() {
+            if (!gameActive) return;
+            enemies.forEach(enemy => {
+                let dx = playerX - enemy.x;
+                let dy = playerY - enemy.y;
+                let distance = Math.sqrt(dx * dx + dy * dy);
+
+                enemy.x += (dx / distance) * enemySpeed;
+                enemy.y += (dy / distance) * enemySpeed;
+
+                updatePosition(enemy.element, enemy.x, enemy.y);
+
+                if (distance < 40) gameOver();
+            });
+
+            requestAnimationFrame(moveEnemies);
+        }
+
+        function updateTimer() {
+            if (!gameActive) return;
+            timeLeft--;
+            totalSurvivalTime++;
+
+            timerText.textContent = timeLeft;
+            timerText.style.color = ["red", "green", "blue", "purple", "yellow"][Math.floor(Math.random() * 5)];
+            timerText.style.fontSize = `${40 + Math.random() * 20}px`;
+
+            if (timeLeft % 5 === 0) createEnemy();
+            if (timeLeft % 3 === 0) shrinkGameArea();
+
+            if (timeLeft <= 0) nextLevel();
+            else setTimeout(updateTimer, 1000);
+        }
+
+        function shrinkGameArea() {
+            let newWidth = originalWidth * (0.4 + Math.random() * 0.5);
+            let newHeight = originalHeight * (0.4 + Math.random() * 0.5);
+
+            if (Math.random() > 0.8) {
+                newWidth = originalWidth;
+                newHeight = originalHeight;
+            }
+
+            gameArea.style.width = `${newWidth}px`;
+            gameArea.style.height = `${newHeight}px`;
+        }
+
+        function gameOver() {
+            gameActive = false;
+            gameOverText.style.opacity = "1";
+
+            if (totalSurvivalTime > highScore) {
+                highScore = totalSurvivalTime;
+                localStorage.setItem("highScore", highScore);
+            }
+            highScoreText.innerHTML = `High Score: ${highScore}`;
+            highScoreText.style.opacity = "1";
+        }
+
+        function nextLevel() {
+            level++;
+            enemySpeed += 0.5;
+            timeLeft = 60;
+            startLevel();
+        }
+
+        function startLevel() {
+            gameActive = false;
+            levelText.innerHTML = `LEVEL ${level} - START!`;
+            levelText.style.opacity = "1";
+
+            setTimeout(() => {
+                levelText.style.opacity = "0";
+                gameActive = true;
+                updateTimer();
+                moveEnemies();
+            }, 3000);
+        }
+
+        function updatePosition(element, x, y) {
+            element.style.left = `${x}px`;
+            element.style.top = `${y}px`;
+        }
+
+        startLevel();
+    </script>
+</body>
+</html>
